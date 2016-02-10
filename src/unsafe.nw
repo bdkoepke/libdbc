@@ -1,0 +1,7 @@
+\section{Unsafe}
+
+Definition for unsafe methods, i.e. methods that may be used only with extreme caution. For the moment we only define a void cast operator. This way we can find all void casts in our code easily and quickly and also easily find void casts that have not been checked for consistency. By using this method you are signifying that you know that the void cast is safe.
+<<unsafe.h>>=
+#pragma once
+#define void_cast(p)((void *) p)
+@
