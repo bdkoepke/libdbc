@@ -4,8 +4,8 @@
 
 We start off with the common contract definition which will be used by the implementation of many of the other contracts. We take in an expression as well as a string representation of that same expression so we can pretty-print the contract violation. We also take in the file name, line number, the function name, and a format string. Within this contract we then check whether the expression is satisfied. If it is not then we print the error, assert failure (to aid with debugging), and finally exit with failure status. The reason that we are failing hard and fast with these contract violations is because we do not know whether the program still has valid state after a contract violation. In theory, none of these contracts should ever be violated in release code.
 <<contract-c>>=
-static inline void contract(bool expr, const char *expr_s, const char *file,
-                            int line, const char *func, const char *format) {
+void contract(bool expr, const char *expr_s, const char *file,
+              int line, const char *func, const char *format) {
   if (!expr) {
     fprintf(stderr, format, file, line, func, expr_s);
     assert(false), exit(EXIT_FAILURE);
@@ -15,9 +15,9 @@ static inline void contract(bool expr, const char *expr_s, const char *file,
 
 We also define a generic contract that asserts that it's input is non-null and also returns it's argument to the caller.
 <<contract-non-null-c>>=
-static inline void *contract_non_null(const void *x, const char *x_s,
-                                      const char *file, int line,
-                                      const char *func, const char *format) {
+void *contract_non_null(const void *x, const char *x_s,
+                        const char *file, int line,
+                        const char *func, const char *format) {
   if (x == NULL) {
     fprintf(stderr, format, file, line, func, x_s);
     assert(false), exit(EXIT_FAILURE);
@@ -26,12 +26,12 @@ static inline void *contract_non_null(const void *x, const char *x_s,
 }
 @
 
-Finally we have a generic contract that asserts equailty between two values and returns the first argument to the caller.
+Finally, we have a generic contract that asserts equailty between two values and returns the first argument to the caller.
 <<contract-equal-c>>=
-static inline void *contract_equal(const void *a, const void *b,
-                                   const char *a_s, const char *b_s,
-                                   const char *file, int line, const char *func,
-                                   const char *format) {
+void *contract_equal(const void *a, const void *b,
+                     const char *a_s, const char *b_s,
+                     const char *file, int line, const char *func,
+                     const char *format) {
   if (a != b) {
     fprintf(stderr, format, file, line, func, a_s, b_s);
     assert(false), exit(EXIT_FAILURE);
@@ -42,7 +42,9 @@ static inline void *contract_equal(const void *a, const void *b,
 
 \subsection{Strong}
 
-We start off by defining a simple contract that will always fail when reached. This enables us to make failure cases explicit. We use \emph{\#define} here so we can get references to the point in the source code where the contract was violated.
+Strong contracts are contracts that should be left in release code (in other words, they are part of the public API).
+
+We start off by defining a simple contract that will always fail when reached. This enables us to make failure cases explicit. We use \emph{\#define} here so we can get references to the point in the source code where the contract was violated. We are failing hard in all of our contracts because contract failures indicate programmer errors, not situations that can be recovered from.
 <<contract-fail-h>>=
 #define contract_fail() _contract_fail(__FILE__, __LINE__, __func__)
 void _contract_fail(const char *file, int line, const char *func);
@@ -87,7 +89,7 @@ void *_contract_requires_equal(const void *a, const void *b, const char *a_s,
 }
 @
 
-Our final strong precondition contract lets us assert against arbitrary expressions. 
+We can also assert arbitrary expressions.
 <<contract-requires-h>>=
 #define contract_requires(expr)                                                \
   _contract_requires((expr), #expr, __FILE__, __LINE__, __func__)
@@ -103,7 +105,7 @@ void _contract_requires(bool expr, const char *expr_s, const char *file,
 @
 
 
-We also define these contracts as postconditions. While you could use the requires contracts for postconditions as well (they do the same thing), using ensures clarifies the code.
+We also define these contracts as postconditions. While you could use the requires contracts for postconditions as well (they do the same thing), using ensures signifies intent.
 <<contract-ensures-h>>=
 #define contract_ensures(expr)                                                 \
   _contract_ensures((expr), #expr, __FILE__, __LINE__, __func__)

@@ -1,0 +1,7 @@
+\section{Motivation}
+
+Design by contract is normally used both as a form of runtime contracts (to ensure that an object doesn't invalidate it's invariants) and as a form of documentation. By forcing software developers to explicitly state method contracts we can make it much easier to understand what an implementation of a method should be doing.
+
+Testing is another method that can be used in conjunction with design by contract to ensure that certain software properties hold. The difference with design by contract is that we can ensure that \emph{all} implementations of a method satisfy certain properties.
+
+In the formal methods hierarchy, design by contract sits close to the bottom (between formal specification and formal development). Since the contracts specified by a design by contract system are evaluated at runtime there is a performance penalty to using them; however, they take significantly less time during development than other formal method systems (refinement types, dependent types, theorem provers, etc) at this time.
