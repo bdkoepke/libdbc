@@ -2,8 +2,8 @@
 
 \subsection{Common}
 
-We start off with the common contract definition which will be used by the implementation of many of the other contracts. We take in an expression as well as a string representation of that same expression so we can pretty-print the contract violation. We also take in the file name, line number, the function name, and a format string. Within this contract we then check whether the expression is satisfied. If it is not then we print the error, assert failure (to aid with debugging), and finally exit with failure status. The reason that we are failing hard and fast with these contract violations is because we do not know whether the program still has valid state after a contract violation. In theory, none of these contracts should ever be violated in release code.
-<<contract-c>>=
+We start off with the common contract definition that will be used by the implementation of many of the other contracts. We take in an expression as well as a string representation of that same expression so we can pretty-print the contract violation. We also take in the file name, line number, the function name, and a format string. Within this contract we then check whether the expression is satisfied. If it is not then we print the error, assert failure (to aid with debugging), and finally exit with failure status. The reason that we are failing hard and fast with these contract violations is because we do not know whether the program still has valid state after a contract violation. In theory, none of these contracts should ever be violated in release code.
+<<Common Contract>>=
 void contract(bool expr, const char *expr_s, const char *file,
               int line, const char *func, const char *format) {
   if (!expr) {
@@ -14,7 +14,7 @@ void contract(bool expr, const char *expr_s, const char *file,
 @
 
 We also define a generic contract that asserts that it's input is non-null and also returns it's argument to the caller.
-<<contract-non-null-c>>=
+<<Non Null Contract>>=
 void *contract_non_null(const void *x, const char *x_s,
                         const char *file, int line,
                         const char *func, const char *format) {
@@ -26,8 +26,8 @@ void *contract_non_null(const void *x, const char *x_s,
 }
 @
 
-Finally, we have a generic contract that asserts equailty between two values and returns the first argument to the caller.
-<<contract-equal-c>>=
+The last common contract we will define asserts equailty between two values and returns the first argument to it's caller.
+<<Equality Contract>>=
 void *contract_equal(const void *a, const void *b,
                      const char *a_s, const char *b_s,
                      const char *file, int line, const char *func,
@@ -42,28 +42,32 @@ void *contract_equal(const void *a, const void *b,
 
 \subsection{Strong}
 
-Strong contracts are contracts that should be left in release code (in other words, they are part of the public API).
+Strong contracts are contracts that should be left in release code (in other words, they are part of the public API of your module).
 
-We start off by defining a simple contract that will always fail when reached. This enables us to make failure cases explicit. We use \emph{\#define} here so we can get references to the point in the source code where the contract was violated. We are failing hard in all of our contracts because contract failures indicate programmer errors, not situations that can be recovered from.
-<<contract-fail-h>>=
+\subsubsection{Failure}
+
+We define a simple contract that will always fail when reached. This enables us to make failure cases explicit. We use \emph{\#define} here so we can get references to the point in the source code where the contract was violated.
+<<Failure Contract Declaration>>=
 #define contract_fail() _contract_fail(__FILE__, __LINE__, __func__)
 void _contract_fail(const char *file, int line, const char *func);
 @
-<<contract-fail-c>>=
+<<Failure Contract Implementation>>=
 void _contract_fail(const char *file, int line, const char *func) {
   fprintf(stderr, "%s:%d: %s: Fail.\n", file, line, func);
   assert(false), exit(EXIT_FAILURE);
 }
 @
 
-We also define a contract that ensures a value is not null before proceeding with the body of a method. In order to facilitate more compact code we also return a reference to the value that was passed in. Also note that we have a defined `function' as well as the actual function itself. Do not use the function declaration directly, the \emph{\#define} is the intended function call and the function declaration is only exposed in order to facilitate the defined function.
-<<contract-requires-non-null-h>>=
+\subsubsection{Preconditions}
+
+The next strong contract is used to assert a precondition for a method. Looking at the implementation we can see that we are just forwarding the call to the common non null handler.
+<<Requires Non Null Declaration>>=
 #define contract_requires_non_null(x)                                          \
   _contract_requires_non_null((x), #x, __FILE__, __LINE__, __func__)
 void *_contract_requires_non_null(const void *x, const char *x_s,
                                   const char *file, int line, const char *func);
 @
-<<contract-requires-non-null-c>>=
+<<Requires Non Null Implementation>>=
 void *_contract_requires_non_null(const void *x, const char *x_s,
                                   const char *file, int line,
                                   const char *func) {
@@ -73,14 +77,14 @@ void *_contract_requires_non_null(const void *x, const char *x_s,
 @
 
 It is also useful to be able to assert equality between two values.
-<<contract-requires-equal-h>>=
+<<Requires Equality Declaration>>=
 #define contract_requires_equal(a, b)                                          \
   _contract_requires_equal((a), (b), #a, #b, __FILE__, __LINE__, __func__)
 void *_contract_requires_equal(const void *a, const void *b, const char *a_s,
                                const char *b_s, const char *file, int line,
                                const char *func);
 @
-<<contract-requires-equal-c>>=
+<<Requires Equality Implementation>>=
 void *_contract_requires_equal(const void *a, const void *b, const char *a_s,
                                const char *b_s, const char *file, int line,
                                const char *func) {
@@ -90,13 +94,13 @@ void *_contract_requires_equal(const void *a, const void *b, const char *a_s,
 @
 
 We can also assert arbitrary expressions.
-<<contract-requires-h>>=
+<<Requires Expression Declaration>>=
 #define contract_requires(expr)                                                \
   _contract_requires((expr), #expr, __FILE__, __LINE__, __func__)
 void _contract_requires(bool expr, const char *expr_s, const char *file,
                         int line, const char *func);
 @
-<<contract-requires-c>>=
+<<Requires Expression Implementation>>=
 void _contract_requires(bool expr, const char *expr_s, const char *file,
                         int line, const char *func) {
   contract(expr, expr_s, file, line, func,
@@ -104,41 +108,31 @@ void _contract_requires(bool expr, const char *expr_s, const char *file,
 }
 @
 
+\subsubsection{Postconditions}
 
-We also define these contracts as postconditions. While you could use the requires contracts for postconditions as well (they do the same thing), using ensures signifies intent.
-<<contract-ensures-h>>=
-#define contract_ensures(expr)                                                 \
-  _contract_ensures((expr), #expr, __FILE__, __LINE__, __func__)
-void _contract_ensures(bool expr, const char *expr_s, const char *file,
-                       int line, const char *func);
-@
-<<contract-ensures-c>>=
-void _contract_ensures(bool expr, const char *expr_s, const char *file,
-                       int line, const char *func) {
-  contract(expr, expr_s, file, line, func, "%s:%d: %s: Ensures `%s' failed.\n");
-}
-@
+We also redefine the above precondition functions as postcondition functions. While they do the same thing functionally, by declaring them as postconditions we can try and improve code-clarity.
 <<contract-ensures-non-null-h>>=
+<<Ensures Non Null Declaration>>=
 #define contract_ensures_non_null(x)                                           \
   _contract_ensures_non_null((x), #x, __FILE__, __LINE__, __func__)
 void *_contract_ensures_non_null(const void *x, const char *x_s,
                                  const char *file, int line, const char *func);
 @
-<<contract-ensures-non-null-c>>=
+<<Ensures Non Null Implementation>>=
 void *_contract_ensures_non_null(const void *x, const char *x_s,
                                  const char *file, int line, const char *func) {
   return contract_non_null(x, x_s, file, line, func,
                            "%s:%d: %s: Ensures `%s' != NULL failed.\n");
 }
 @
-<<contract-ensures-equal-h>>=
+<<Ensures Equality Declaration>>=
 #define contract_ensures_equal(a, b)                                           \
   _contract_ensures_equal((a), (b), #a, #b, __FILE__, __LINE__, __func__)
 void *_contract_ensures_equal(const void *a, const void *b, const char *a_s,
                               const char *b_s, const char *file, int line,
                               const char *func);
 @
-<<contract-ensures-equal-c>>=
+<<Ensures Equality Implementation>>=
 void *_contract_ensures_equal(const void *a, const void *b, const char *a_s,
                               const char *b_s, const char *file, int line,
                               const char *func) {
@@ -147,28 +141,43 @@ void *_contract_ensures_equal(const void *a, const void *b, const char *a_s,
 }
 @
 
+<<Ensures Expression Declaration>>=
+#define contract_ensures(expr)                                                 \
+  _contract_ensures((expr), #expr, __FILE__, __LINE__, __func__)
+void _contract_ensures(bool expr, const char *expr_s, const char *file,
+                       int line, const char *func);
+@
+<<Ensures Expression Implementation>>=
+void _contract_ensures(bool expr, const char *expr_s, const char *file,
+                       int line, const char *func) {
+  contract(expr, expr_s, file, line, func, "%s:%d: %s: Ensures `%s' failed.\n");
+}
+@
+
+\subsubsection{Invariants}
+
 Finally we define the same contracts as invariants.
-<<contract-invariant-h>>=
+<<Invariant Expression Declaration>>=
 #define contract_invariant(expr)                                               \
   _contract_invariant((expr), #expr, __FILE__, __LINE__, __func__)
 void _contract_invariant(bool expr, const char *expr_s, const char *file,
                          int line, const char *func);
 @
-<<contract-invariant-c>>=
+<<Invariant Expression Implementation>>=
 void _contract_invariant(bool expr, const char *expr_s, const char *file,
                          int line, const char *func) {
   contract(expr, expr_s, file, line, func,
            "%s:%d: %s: Invariant `%s' failed.\n");
 }
 @
-<<contract-invariant-non-null-h>>=
+<<Invariant Non Null Declaration>>=
 #define contract_invariant_non_null(x)                                         \
   _contract_invariant_non_null((x), #x, __FILE__, __LINE__, __func__)
 void *_contract_invariant_non_null(const void *x, const char *x_s,
                                    const char *file, int line,
                                    const char *func);
 @
-<<contract-invariant-non-null-c>>=
+<<Invariant Non Null Implementation>>=
 void *_contract_invariant_non_null(const void *x, const char *x_s,
                                    const char *file, int line,
                                    const char *func) {
@@ -176,14 +185,14 @@ void *_contract_invariant_non_null(const void *x, const char *x_s,
                            "%s:%d: %s: Invariant `%s' != NULL failed.\n");
 }
 @
-<<contract-invariant-equal-h>>=
+<<Invariant Equality Declaration>>=
 #define contract_invariant_equal(a, b)                                         \
   _contract_invariant_equal((a), (b), #a, #b, __FILE__, __LINE__, __func__)
 void *_contract_invariant_equal(const void *a, const void *b, const char *a_s,
                                 const char *b_s, const char *file, int line,
                                 const char *func);
 @
-<<contract-invariant-equal-c>>=
+<<Invariant Equality Implementation>>=
 void *_contract_invariant_equal(const void *a, const void *b, const char *a_s,
                               const char *b_s, const char *file, int line,
                               const char *func) {
@@ -195,7 +204,7 @@ void *_contract_invariant_equal(const void *a, const void *b, const char *a_s,
 \subsection{Weak}
 
 The weak contracts are implemented in the same way as the strong contracts, the only difference is that we can compile these out without impacting the API of the application.
-<<contract-weak-h>>=
+<<Weak Contracts>>=
 #define contract_weak_requires(expr)                                           \
   _contract_requires((expr), #expr, __FILE__, __LINE__, __func__)
 #define contract_weak_requires_non_null(x)                                     \
@@ -211,24 +220,26 @@ The weak contracts are implemented in the same way as the strong contracts, the 
   _contract_ensures_equal((a), (b), #a, #b, __FILE__, __LINE__, __func__)
 @
 
+\subsection{Completed files.}
+
 <<contract.h>>=
 #pragma once
 #include <stdbool.h>
-<<contract-fail-h>>
+<<Failure Contract Declaration>>
 
-<<contract-requires-non-null-h>>
-<<contract-requires-equal-h>>
-<<contract-requires-h>>
+<<Requires Non Null Declaration>>
+<<Requires Equality Declaration>>
+<<Requires Expression Declaration>>
 
-<<contract-ensures-non-null-h>>
-<<contract-ensures-equal-h>>
-<<contract-ensures-h>>
+<<Ensures Non Null Declaration>>
+<<Ensures Equality Declaration>>
+<<Ensures Expression Declaration>>
 
-<<contract-invariant-non-null-h>>
-<<contract-invariant-equal-h>>
-<<contract-invariant-h>>
+<<Invariant Non Null Declaration>>
+<<Invariant Equality Declaration>>
+<<Invariant Expression Declaration>>
 
-<<contract-weak-h>>
+<<Weak Contracts>>
 @
 
 <<contract.c>>=
@@ -239,21 +250,21 @@ The weak contracts are implemented in the same way as the strong contracts, the 
 #include <stdio.h>
 #include <stdlib.h>
 
-<<contract-c>>
+<<Common Contract>>
 
-<<contract-fail-c>>
-<<contract-non-null-c>>
-<<contract-equal-c>>
+<<Failure Contract Implementation>>
+<<Non Null Contract>>
+<<Equality Contract>>
 
-<<contract-requires-non-null-c>>
-<<contract-requires-equal-c>>
-<<contract-requires-c>>
+<<Requires Non Null Implementation>>
+<<Requires Equality Implementation>>
+<<Requires Expression Implementation>>
 
-<<contract-ensures-non-null-c>>
-<<contract-ensures-equal-c>>
-<<contract-ensures-c>>
+<<Ensures Non Null Implementation>>
+<<Ensures Equality Implementation>>
+<<Ensures Expression Implementation>>
 
-<<contract-invariant-non-null-c>>
-<<contract-invariant-equal-c>>
-<<contract-invariant-c>>
+<<Invariant Non Null Implementation>>
+<<Invariant Equality Implementation>>
+<<Invariant Expression Implementation>>
 @
